@@ -2,7 +2,6 @@ package main
 
 import (
 	"os"
-	"encoding/json"
 	"flag"
 	"bufio"
 	"fmt"
@@ -10,9 +9,6 @@ import (
 	"time"
 	"strings"
 	"math/big"
-	"crypto/sha256"
-	"encoding/hex"
-	"io/ioutil"
 )
 
 var expOneSecond *big.Int
@@ -40,30 +36,13 @@ func newPrime(pow int) *big.Int {
 	return prime
 }
 
-func WriteBig(p *big.Int, file string) {
-	data := p.Bytes()
-	ioutil.WriteFile(file, data[:], 0644)
-}
-
-func ReadBig(file string) *big.Int {
-	data, err := ioutil.ReadFile(file)
-
-	if err != nil {
-		fmt.Println("Can't read n.dat, please regenerate the primes.")
-		panic(err.Error())
-	}
-
-	p := big.NewInt(0).SetBytes(data)
-	return p
-}
-
 func main() {
 	fmt.Println("Time-Lock Puzzle")
 	fmt.Println("****************")
 
-	expOneSecond =ExpByPowOfTwo(big.NewInt(2), big.NewInt(5000))
+	expOneSecond =ExpByPowOfTwo(big.NewInt(2), big.NewInt(50000))
 
-	gen := flag.Bool("gen", false, "Start generating a new puzzle")
+	gen := flag.Bool("gen", true, "Start generating a new puzzle")
 	solve := flag.Bool("solve", true, "Start solving a puzzle")
 
 	if *gen {
@@ -75,25 +54,6 @@ func main() {
 	}
 
 	fmt.Println("****************")
-}
-
-func JsonToString(data interface{}) string {
-	b, err := json.Marshal(data)
-    if err != nil {
-        panic(err.Error())
-        return ""
-    }
-    s := string(b)
-    return s
-}
-
-func StringToJson(s string) *Puzzle {
-	data := &Puzzle{}
-	err := json.Unmarshal([]byte(s), data)
-	if err != nil{
-		panic(err.Error())
-	}
-	return data
 }
 
 func preparePuzzle() {
@@ -145,7 +105,7 @@ func preparePuzzle() {
 	for !proceed{
 		x = big.NewInt(0).Rand(rnd, n)
 
-		y = readBig("Enter number of cycles (keep in mind that on other machines, one cycle might go faster or slower) : ")
+		y = ReadBigFromConsole("Enter number of cycles (keep in mind that on other machines, one cycle might go faster or slower) : ")
 
 	    duration := time.Duration(int(y.Int64())) * time.Second
 	    fmt.Println("You entered ", y, ", expected duration is", duration, ". Proceed [y/n] ?")
@@ -189,14 +149,6 @@ func preparePuzzle() {
 	fmt.Println("")
 }
 
-type Puzzle struct {
-	N string
-	TimeToUnlock string
-	NCycles string
-	Base string
-	ExponentOneSecond string
-	Sha256OfSha256 string
-}
 
 func solvePuzzle() {
 
@@ -251,87 +203,4 @@ func solvePuzzle() {
 		fmt.Println("")
 		fmt.Println("################")
 	}
-}
-
-func readBig(text string) *big.Int {
-	reader := bufio.NewReader(os.Stdin)
-
-	fmt.Print(text)
-	s, _ := reader.ReadString('\n')
-	s = strings.Replace(s, "\n", "", 1)
-
-	y := big.NewInt(0)
-	y.SetString(s, 10)
-
-	return y
-}
-
-func sha256AndHex(x []byte) string {
-	hash := sha256.Sum256(x)
-	return hex.EncodeToString(hash[:])
-}
-
-func ExpByPowOfTwoModular(base, power, modulus *big.Int) *big.Int {
-
-	//if power == 0, return 1
-	if power.Cmp(big.NewInt(0)) == 0 {
-		return mod(big.NewInt(1), modulus)
-	}
-	//if power == 1,  base
-	if power.Cmp(big.NewInt(1)) == 0 {
-		return mod(base, modulus)
-	}
-
-    result := big.NewInt(1)
-    one := big.NewInt(1)
-    for power.Cmp(one) > 0 {
-        if modBy2(power).Cmp(one) == 0 {
-            result = mod(multiply(result, base), modulus)
-        	power = big.NewInt(0).Sub(power, one)
-        }
-        power = divideBy2(power)
-        base = mod(multiply(base, base), modulus)
-    }
-    return mod(big.NewInt(0).Mul(result, base), modulus)
-}
-
-
-func ExpByPowOfTwo(base, power *big.Int) *big.Int {
-
-	//if power == 0, return 1
-	if power.Cmp(big.NewInt(0)) == 0 {
-		return big.NewInt(1)
-	}
-	//if power == 1,  base
-	if power.Cmp(big.NewInt(1)) == 0 {
-		return base
-	}
-
-    result := big.NewInt(1)
-    one := big.NewInt(1)
-    for power.Cmp(one) > 0 {
-        if modBy2(power).Cmp(one) == 0 {
-            result = multiply(result, base)
-        	power = big.NewInt(0).Sub(power, one)
-        }
-        power = divideBy2(power)
-        base = multiply(base, base)
-    }
-    return big.NewInt(0).Mul(result, base)
-}
-
-func modBy2(x *big.Int) *big.Int {
-    return big.NewInt(0).Mod(x, big.NewInt(2))
-}
-
-func divideBy2(x *big.Int) *big.Int {
-    return big.NewInt(0).Div(x, big.NewInt(2))
-}
-
-func multiply(x, y *big.Int) *big.Int {
-    return big.NewInt(0).Mul(x, y)
-}
-
-func mod(x, m *big.Int) *big.Int {
-	return big.NewInt(0).Mod(x, m)
 }
