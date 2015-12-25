@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"encoding/json"
 	"flag"
 	"bufio"
 	"fmt"
@@ -29,10 +30,12 @@ func newPrime(pow int) *big.Int {
 		inc += 1
 	}
 	prime := init
+	/*
 	fmt.Println("Parameters are :")
 	fmt.Println("Prime number is", prime)
 	fmt.Println("Corresponding to", base, "^", power, "+", inc)
 	fmt.Println("Its hash is", sha256AndHex(prime.Bytes()))
+	*/
 
 	return prime
 }
@@ -74,6 +77,25 @@ func main() {
 	fmt.Println("****************")
 }
 
+func JsonToString(data interface{}) string {
+	b, err := json.Marshal(data)
+    if err != nil {
+        panic(err.Error())
+        return ""
+    }
+    s := string(b)
+    return s
+}
+
+func StringToJson(s string) *Puzzle {
+	data := &Puzzle{}
+	err := json.Unmarshal([]byte(s), data)
+	if err != nil{
+		panic(err.Error())
+	}
+	return data
+}
+
 func preparePuzzle() {
 
 	//randomness
@@ -89,13 +111,17 @@ func preparePuzzle() {
 	phi := big.NewInt(0).Mul(p_1, q_1)
 	n := big.NewInt(0).Mul(p, q)
 
+	/*
 	fmt.Println("Parameters are :")
 	fmt.Println("N is", n)
 	fmt.Println("Its hash is", sha256AndHex(n.Bytes()))
+	*/
+	fmt.Println("Generation of parameters done...")
+	fmt.Println("Benchmarking, each step should take around 1 sec.")
 
 	//generate benchmark, a 1-second exponentiation
 	repeat := 10
-	times := make([]time.Duration, repeat)
+	sum := int64(0)
 
 	for i:=0; i<repeat; i++ {
 		rand      := big.NewInt(0).Rand(rnd, n)
@@ -104,12 +130,13 @@ func preparePuzzle() {
 		ExpByPowOfTwoModular(rand, expOneSecond, n)
 
 		diff := time.Now().Sub(start)
-		times[i] = diff
-		fmt.Println("Benchmark", i, "took", diff)
+		sum += diff.Nanoseconds()
+		fmt.Println("Benchmark", i, "...")
 	}
 
-	fmt.Println("****************")
-	fmt.Println("All clear !")
+	mean := time.Duration(sum / 10) * time.Nanosecond
+	fmt.Println("On this machine, one cycle takes ", mean)
+	fmt.Println("Gonna generate the puzzle...")
 
 	proceed := false
 	x := big.NewInt(0)
@@ -118,78 +145,84 @@ func preparePuzzle() {
 	for !proceed{
 		x = big.NewInt(0).Rand(rnd, n)
 
-		y = readBig("Enter number of iterations : ")
+		y = readBig("Enter number of cycles (keep in mind that on other machines, one cycle might go faster or slower) : ")
 
-	    fmt.Println("Iter is", y)
 	    duration := time.Duration(int(y.Int64())) * time.Second
-	    fmt.Println("Expected duration is", duration)
-	    fmt.Println("Proceed [y/n] ?")
-	    reader := bufio.NewReader(os.Stdin)
+	    fmt.Println("You entered ", y, ", expected duration is", duration, ". Proceed [y/n] ?")
+ 	    reader := bufio.NewReader(os.Stdin)
 	    ans, _ := reader.ReadString('\n')
 	    ans = strings.Replace(ans, "\n", "", 1)
 
-	    if ans == "y" {
+	    if ans == "y" || ans == "Y" {
 	    	proceed = true
 	    }
 	}
 
 	curr    := big.NewInt(0)
-	zero    := big.NewInt(0)
-	hundred := big.NewInt(100)
 	base    := x
 	iter    := y
 
+	fmt.Println("Generating...")
+
 	exponent := one
 	for curr.Cmp(y) < 0 {
-		if mod(curr, hundred).Cmp(zero) == 0 {
-			diff := big.NewInt(0).Sub(y, curr)
-			rem := time.Duration(int(diff.Int64())) * time.Second
-			fmt.Println("Iteration", curr.String()+"/"+y.String(), "remaning time is", rem)
-		}
-		
 		exponent = mod(big.NewInt(0).Mul(exponent, expOneSecond), phi)
-
 		curr.Add(curr,one)
 
 	}
 
 	x = ExpByPowOfTwoModular(x, exponent, n)
+	timeToUnlock := time.Duration(int(y.Int64()))*time.Second
+	sha := sha256AndHex(x.Bytes())
+	shaOfSha := sha256AndHex([]byte(sha))
 
-	fmt.Println("################")
-	fmt.Println("Time-Lock Puzzle finished !")
+	fmt.Println("Time-Lock Puzzle finished ! the solution is : ")
 	fmt.Println("")
-	fmt.Println("time to unlock:")
-	fmt.Println(time.Duration(int(y.Int64()))*time.Second)
-	fmt.Println("N:")
-	fmt.Println(n)
-	fmt.Println("base:")
-	fmt.Println(base)
-	fmt.Println("expOneSecond:")
-	fmt.Println(expOneSecond)
-	fmt.Println("iter:")
-	fmt.Println(iter)
-	fmt.Println("result:")
-	fmt.Println(x)
-	fmt.Println("sha256 of result:")
-	fmt.Println(sha256AndHex(x.Bytes()))
+	fmt.Println(sha)
 	fmt.Println("")
-	fmt.Println("################")
+	fmt.Println("Please save the following JSON to recompute the solution (expected time :", timeToUnlock, ")")
+
+	filledPuzzle := &Puzzle{n.String(), timeToUnlock.String(), iter.String(), base.String(), expOneSecond.String(), shaOfSha}
+
+	fmt.Println("")
+	fmt.Println(JsonToString(filledPuzzle))
+	fmt.Println("")
+}
+
+type Puzzle struct {
+	N string
+	TimeToUnlock string
+	NCycles string
+	Base string
+	ExponentOneSecond string
+	Sha256OfSha256 string
 }
 
 func solvePuzzle() {
+
+	fmt.Println("Please paste the JSON puzzle :")
+
+	reader := bufio.NewReader(os.Stdin)
+	ans, _ := reader.ReadString('\n')
+	ans    = strings.Replace(ans, "\n", "", 1)
+
+	puzzle := StringToJson(ans)
+
 	//we generate the parameters
-	n := readBig("Please enter n, the modulus :")
-	fmt.Println("n's hash is", sha256AndHex(n.Bytes()))
-	base := readBig("Please enter the base :")
-	fmt.Println("base's hash is", sha256AndHex(base.Bytes()))
-	iter := readBig("Please enter the number of iterations :")
+	n   , _ := big.NewInt(0).SetString(puzzle.N, 10)
+	base, _ := big.NewInt(0).SetString(puzzle.Base, 10)
+	iter, _ := big.NewInt(0).SetString(puzzle.NCycles, 10)
+	exp , _ := big.NewInt(0).SetString(puzzle.ExponentOneSecond, 10)
 
-	x := base
+	fmt.Println("All right ! Going to solve...")
+	fmt.Println("Expected time to unlock : ", puzzle.TimeToUnlock)
 
-	curr := big.NewInt(0)
-	one := big.NewInt(1)
-	zero := big.NewInt(0)
+	x       := base
+	curr    := big.NewInt(0)
+	one     := big.NewInt(1)
+	zero    := big.NewInt(0)
 	hundred := big.NewInt(100)
+	start   := time.Now()
 
 	for curr.Cmp(iter) < 0 {
 		if mod(curr, hundred).Cmp(zero) == 0 {
@@ -198,19 +231,26 @@ func solvePuzzle() {
 			fmt.Println("Iteration", curr.String()+"/"+iter.String(), ", remaining time is", rem)
 		}
 		
-		x = ExpByPowOfTwoModular(x, expOneSecond, n)
+		x = ExpByPowOfTwoModular(x, exp, n)
 
 		curr.Add(curr,one)
 	}
 
-	fmt.Println("################")
-	fmt.Println("Time-Lock Puzzle solved !")
-	fmt.Println("")
-	fmt.Println(x)
-	fmt.Println("")
-	fmt.Println(sha256AndHex(x.Bytes()))
-	fmt.Println("")
-	fmt.Println("################")
+	fmt.Println("Puzzle solved, verifying...")
+	sha := sha256AndHex(x.Bytes())
+	shaOfSha := sha256AndHex([]byte(sha))
+
+	if shaOfSha != puzzle.Sha256OfSha256 {
+		fmt.Println("An error occured. The solution isn't the expected one.")
+	} else {
+		timeNeeded := time.Now().Sub(start)
+		fmt.Println("################")
+		fmt.Println("Time-Lock Puzzle solved in", timeNeeded, "!")
+		fmt.Println("")
+		fmt.Println(sha)
+		fmt.Println("")
+		fmt.Println("################")
+	}
 }
 
 func readBig(text string) *big.Int {
