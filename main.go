@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"flag"
+	"strconv"
 	"bufio"
 	"fmt"
 	"math/rand"
@@ -10,39 +11,11 @@ import (
 	"strings"
 	"math/big"
 )
-
-var expOneSecond *big.Int
-
-func newPrime(pow int) *big.Int {
-	//we pick the first prime
-	base      := int64(2)
-	power     := int64(pow)
-	init      := ExpByPowOfTwo(big.NewInt(base), big.NewInt(power))
-	precision := 50
-	one       := big.NewInt(1)
-	inc       := 0
-	for !init.ProbablyPrime(precision) {
-		init = big.NewInt(0).Add(init, one)
-		inc += 1
-	}
-	prime := init
-	/*
-	fmt.Println("Parameters are :")
-	fmt.Println("Prime number is", prime)
-	fmt.Println("Corresponding to", base, "^", power, "+", inc)
-	fmt.Println("Its hash is", sha256AndHex(prime.Bytes()))
-	*/
-
-	return prime
-}
-
 func main() {
 	fmt.Println("Time-Lock Puzzle")
 	fmt.Println("****************")
 
-	expOneSecond =ExpByPowOfTwo(big.NewInt(2), big.NewInt(50000))
-
-	gen := flag.Bool("gen", true, "Start generating a new puzzle")
+	gen := flag.Bool("gen", false, "Start generating a new puzzle")
 	solve := flag.Bool("solve", true, "Start solving a puzzle")
 
 	if *gen {
@@ -62,6 +35,9 @@ func preparePuzzle() {
 	rndSource := rand.NewSource(time.Now().UnixNano())
 	rnd       := rand.New(rndSource)
 
+	expOfExp     := 50000
+	expOneSecond := ExpByPowOfTwo(big.NewInt(2), big.NewInt(int64(expOfExp)))
+
 	//we generate the parameters
 	p := newPrime(1234)
 	q := newPrime(1010)
@@ -71,11 +47,6 @@ func preparePuzzle() {
 	phi := big.NewInt(0).Mul(p_1, q_1)
 	n := big.NewInt(0).Mul(p, q)
 
-	/*
-	fmt.Println("Parameters are :")
-	fmt.Println("N is", n)
-	fmt.Println("Its hash is", sha256AndHex(n.Bytes()))
-	*/
 	fmt.Println("Generation of parameters done...")
 	fmt.Println("Benchmarking, each step should take around 1 sec.")
 
@@ -91,7 +62,7 @@ func preparePuzzle() {
 
 		diff := time.Now().Sub(start)
 		sum += diff.Nanoseconds()
-		fmt.Println("Benchmark", i, "...")
+		fmt.Println("Benchmark", i, "of", repeat, "...")
 	}
 
 	mean := time.Duration(sum / 10) * time.Nanosecond
@@ -108,7 +79,8 @@ func preparePuzzle() {
 		y = ReadBigFromConsole("Enter number of cycles (keep in mind that on other machines, one cycle might go faster or slower) : ")
 
 	    duration := time.Duration(int(y.Int64())) * time.Second
-	    fmt.Println("You entered ", y, ", expected duration is", duration, ". Proceed [y/n] ?")
+	    durationThisMachine := time.Duration(int(y.Int64())) * mean
+	    fmt.Println("You entered ", y, ", expected duration is", duration, " (", durationThisMachine, "on this machine). Proceed [y/n] ?")
  	    reader := bufio.NewReader(os.Stdin)
 	    ans, _ := reader.ReadString('\n')
 	    ans = strings.Replace(ans, "\n", "", 1)
@@ -142,7 +114,7 @@ func preparePuzzle() {
 	fmt.Println("")
 	fmt.Println("Please save the following JSON to recompute the solution (expected time :", timeToUnlock, ")")
 
-	filledPuzzle := &Puzzle{n.String(), timeToUnlock.String(), iter.String(), base.String(), expOneSecond.String(), shaOfSha}
+	filledPuzzle := &Puzzle{n.String(), timeToUnlock.String(), iter.String(), base.String(), strconv.Itoa(expOfExp), shaOfSha}
 
 	fmt.Println("")
 	fmt.Println(JsonToString(filledPuzzle))
@@ -161,10 +133,12 @@ func solvePuzzle() {
 	puzzle := StringToJson(ans)
 
 	//we generate the parameters
-	n   , _ := big.NewInt(0).SetString(puzzle.N, 10)
-	base, _ := big.NewInt(0).SetString(puzzle.Base, 10)
-	iter, _ := big.NewInt(0).SetString(puzzle.NCycles, 10)
-	exp , _ := big.NewInt(0).SetString(puzzle.ExponentOneSecond, 10)
+	n, _        := big.NewInt(0).SetString(puzzle.N, 10)
+	base, _     := big.NewInt(0).SetString(puzzle.Base, 10)
+	iter, _     := big.NewInt(0).SetString(puzzle.NCycles, 10)
+	expOfExp, _ := big.NewInt(0).SetString(puzzle.ExponentOneSecond, 10)
+
+	exp         := ExpByPowOfTwo(big.NewInt(2), expOfExp)
 
 	fmt.Println("All right ! Going to solve...")
 	fmt.Println("Expected time to unlock : ", puzzle.TimeToUnlock)
