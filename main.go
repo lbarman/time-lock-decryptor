@@ -12,11 +12,42 @@ import (
 	"math/big"
 )
 func main() {
+	fmt.Println("")
 	fmt.Println("Time-Lock Puzzle")
 	fmt.Println("****************")
 
+	fmt.Println(`
+A time-lock puzzle is a mathematical puzzle that takes a bounded time
+to solve, but can be created much more efficiently. It was proposed by
+Rivest, Shamir, and Wagner in [1]. 
+In effect, solving a time-lock puzzle yields a solution only after fi-
+xed number of operations which are inherently non-parallelizable; it is
+used to force the solver to use a certain quantity of resources (time, 
+and/or computational power) to discover the solution.
+
+Concretely, Alice creates a puzzle with some public parameters and a 
+number of cycles C, each cycle taking around 1 sec for a common laptop 
+to compute. Alice is able to compute the solution immediately, using RSA
+properties and Fermat's little theorem. Alice then sends the puzzle to 
+Bob, which cannot find the solution without computing all the C cycles, 
+which takes C * 1 seconds.
+
+Alice can use this system to make sure some content is not available be-
+fore some time (by encrypting with the puzzle's solution as a key, and
+by setting C high enough).
+
+[1] https://people.csail.mit.edu/rivest/pubs/RSW96.pdf
+
+******
+
+The software is meant as a fun exercice, not something secure under all 
+conditions. All usage is at your own risk!
+
+******
+`)
+
 	gen := flag.Bool("gen", false, "Start generating a new puzzle")
-	solve := flag.Bool("solve", true, "Start solving a puzzle")
+	solve := flag.Bool("solve", false, "Start solving a puzzle")
 
 	if *gen {
 		preparePuzzle()
@@ -39,8 +70,8 @@ func preparePuzzle() {
 	expOneSecond := ExpByPowOfTwo(big.NewInt(2), big.NewInt(int64(expOfExp)))
 
 	//we generate the parameters
-	p := newPrime(1234)
-	q := newPrime(1010)
+	p := newRandomPrime(1024)
+	q := newRandomPrime(1024)
 	one := big.NewInt(1)
 	p_1 := big.NewInt(0).Sub(p, one)
 	q_1 := big.NewInt(0).Sub(q, one)
@@ -76,7 +107,7 @@ func preparePuzzle() {
 	for !proceed{
 		x = big.NewInt(0).Rand(rnd, n)
 
-		y = ReadBigFromConsole("Enter number of cycles (keep in mind that on other machines, one cycle might go faster or slower) : ")
+		y = ReadBigFromConsole("Enter number of cycles needed to solve the puzzle (keep in mind that on other machines, one cycle might go faster or slower than the expected 1 sec) : ")
 
 	    duration := time.Duration(int(y.Int64())) * time.Second
 	    durationThisMachine := time.Duration(int(y.Int64())) * mean
@@ -147,11 +178,11 @@ func solvePuzzle() {
 	curr    := big.NewInt(0)
 	one     := big.NewInt(1)
 	zero    := big.NewInt(0)
-	hundred := big.NewInt(100)
+	five := big.NewInt(5)
 	start   := time.Now()
 
 	for curr.Cmp(iter) < 0 {
-		if mod(curr, hundred).Cmp(zero) == 0 {
+		if mod(curr, five).Cmp(zero) == 0 {
 			diff := big.NewInt(0).Sub(iter, curr)
 			rem := time.Duration(int(diff.Int64())) * time.Second
 			fmt.Println("Iteration", curr.String()+"/"+iter.String(), ", remaining time is", rem)

@@ -4,36 +4,18 @@ import (
     "math/big"
     "crypto/sha256"
     "encoding/hex"
+    "crypto/rand"
 )
 
-func newStrongPrime(nbits int) *big.Ing {
-    //randomness
-    rndSource := rand.NewSource(time.Now().UnixNano())
-    rnd       := rand.New(rndSource)
-    p         := big.NewInt(0).Rand(rnd, n)
-}
+func newRandomPrime(nbits int) *big.Int {
 
-func newPrime(pow int) *big.Int {
-    //we pick the first prime
-    base      := int64(2)
-    power     := int64(pow)
-    init      := ExpByPowOfTwo(big.NewInt(base), big.NewInt(power))
-    precision := 50
-    one       := big.NewInt(1)
-    inc       := 0
-    for !init.ProbablyPrime(precision) {
-        init = big.NewInt(0).Add(init, one)
-        inc += 1
+    p, err := rand.Prime(rand.Reader, nbits)
+
+    if err != nil {
+        panic(err)
     }
-    prime := init
-    /*
-    fmt.Println("Parameters are :")
-    fmt.Println("Prime number is", prime)
-    fmt.Println("Corresponding to", base, "^", power, "+", inc)
-    fmt.Println("Its hash is", sha256AndHex(prime.Bytes()))
-    */
 
-    return prime
+    return p
 }
 
 func sha256AndHex(x []byte) string {
