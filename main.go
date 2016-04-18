@@ -12,6 +12,13 @@ import (
 	"math/big"
 )
 func main() {
+
+	gen   := flag.Bool("gen", false, "Start generating a new puzzle")
+	solve := flag.Bool("solve", false, "Start solving a puzzle")
+
+	fmt.Println(*gen)
+	fmt.Println(*solve)
+	
 	fmt.Println("")
 	fmt.Println("Time-Lock Puzzle")
 	fmt.Println("****************")
@@ -45,9 +52,6 @@ conditions. All usage is at your own risk!
 
 ******
 `)
-
-	gen := flag.Bool("gen", false, "Start generating a new puzzle")
-	solve := flag.Bool("solve", false, "Start solving a puzzle")
 
 	if *gen {
 		preparePuzzle()
